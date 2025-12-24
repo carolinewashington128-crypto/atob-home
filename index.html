@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATOB - Virtual Betting</title>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        .font-mono {
+            font-family: 'Roboto Mono', monospace;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+        
+        .odds-btn-active {
+            background-color: #fbbf24; /* amber-400 */
+            color: #000;
+            border-color: #fbbf24;
+        }
+        @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        .animate-marquee {
+            display: inline-block;
+            animation: marquee 20s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- Data & Constants ---
+        
+        const TEAMS_FOOTBALL = {
+            england: ['Man City', 'Arsenal', 'Liverpool', 'Man Utd', 'Chelsea', 'Tottenham', 'Aston Villa', 'Newcastle'],
+            spain: ['Real Madrid', 'Barcelona', 'Atletico Madrid', 'Sevilla', 'Real Sociedad', 'Betis'],
+            germany: ['Bayern Munich', 'Dortmund', 'Leverkusen', 'RB Leipzig', 'Frankfurt'],
+            italy: ['Juventus', 'Inter Milan', 'AC Milan', 'Napoli', 'Roma', 'Lazio'],
+            france: ['PSG', 'Monaco', 'Lyon', 'Marseille', 'Lille']
+        };
+
+        const TEAMS_BASKETBALL = ['Lakers', 'Warriors', 'Celtics', 'Bulls', 'Heat', 'Nets', 'Bucks', 'Suns', 'Nuggets', '76ers'];
+        const TEAMS_HOCKEY = ['Bruins', 'Rangers', 'Blackhawks', 'Maple Leafs', 'Oilers', 'Penguins', 'Lightning', 'Canadiens', 'Red Wings', 'Canucks'];
+        const TEAMS_AM_FOOTBALL = ['Chiefs', '49ers', 'Eagles', 'Bills', 'Bengals', 'Cowboys', 'Ravens', 'Lions', 'Dolphins', 'Packers'];
+        const TEAMS_BASEBALL = ['Yankees', 'Dodgers', 'Braves', 'Astros', 'Phillies', 'Orioles', 'Rangers', 'Rays', 'Brewers', 'Twins'];
+        const TEAMS_TENNIS = ['Djokovic', 'Alcaraz', 'Sinner', 'Medvedev', 'Rublev', 'Zverev', 'Tsitsipas', 'Rune', 'Hurkacz', 'Fritz'];
+
+        const ALL_FOOTBALL_TEAMS = Object.values(TEAMS_FOOTBALL).flat();
+
+        const INITIAL_BALANCE = 1000;
+
+        // --- Auth Manager ---
+
+        const STORAGE_KEY = 'atob_users';
+        const SESSION_KEY = 'atob_session';
+
+        const UserManager = {
+            getUsers: () => JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'),
+            saveUsers: (users) => localStorage.setItem(STORAGE_KEY, JSON.stringify(users)),
+            
+            login: (username, password) => {
+                const users = UserManager.getUsers();
+                const user = users[username];
+                if (user && user.password === password) {
+                    localStorage.setItem(SESSION_KEY, username);
+                    return { username, balance: user.balance, bets: user.bets };
+                }
+                throw new Error('Invalid username or password');
+            },
+            
+            register: (username, password) => {
+                const users = UserManager.getUsers();
+                if (users[username]) throw new Error('Username already taken');
+                
+                const newUser = { 
+                    password, 
+                    balance: INITIAL_BALANCE, 
+                    bets: [] 
+                };
+                
+                users[username] = newUser;
+                UserManager.saveUsers(users);
+                localStorage.setItem(SESSION_KEY, username);
+                return { username, ...newUser };
+            },
+            
+            logout: () => {
+                localStorage.removeItem(SESSION_KEY);
+            },
+            
+            checkSession: () => {
+                const username = localStorage.getItem(SESSION_KEY);
+                if (username) {
+                    const users = UserManager.getUsers();
+                    if (users[username]) return { username, ...users[username] };
+                }
+                return null;
+            },
+
+            updateUserData: (username, data) => {
+                const users = UserManager.getUsers();
+                if (users[username]) {
+                    users[username] = { ...users[username], ...data };
+                    UserManager.saveUsers(users);
+                }
+            }
+        };
+
+        // --- Helper Functions ---
+
+        const randomOdds = (min, max) => {
+            return (Math.random() * (max - min) + min).toFixed(2);
+        };
+
+        // 3-Way (1X2) Odds for Football
+        const generateFootballOdds = () => {
+            const r = Math.random();
+            let home, draw, away;
+
+            if (r < 0.33) { // Favorite Home
+                home = randomOdds(1.2, 2.5);
+                draw = randomOdds(3.0, 4.5);
+                away = randomOdds(4.0, 9.0);
+            } else if (r < 0.66) { // Balanced
+                home = randomOdds(2.2, 3.0);
+                draw = randomOdds(2.8, 3.5);
+                away = randomOdds(2.5, 3.2);
+            } else { // Favorite Away
+                home = randomOdds(3.5, 6.0);
+                draw = randomOdds(3.0, 4.0);
+                away = randomOdds(1.5, 2.8);
+            }
+
+            return { home: parseFloat(home), draw: parseFloat(draw), away: parseFloat(away) };
+        };
+
+        // 2-Way (Moneyline) Odds for Basketball & Hockey
+        const generateMoneylineOdds = (minSpread = 1.2, maxSpread = 3.5) => {
+             const r = Math.random();
+             let home, away;
+             
+             if (r < 0.5) { // Home Favorite
+                 home = randomOdds(minSpread, 1.8);
+                 away = randomOdds(1.9, maxSpread);
+             } else { // Away Favorite
+                 home = randomOdds(1.9, maxSpread);
+                 away = randomOdds(minSpread, 1.8);
+             }
+             
+             return { home: parseFloat(home), away: parseFloat(away) };
+        };
+
+        const generateMatches = (sport, count = 6) => {
+            const matches = [];
+            let teams = [];
+            let oddsGenerator;
+            let leagues = [];
+
+            if (sport === 'football') {
+                teams = [...ALL_FOOTBALL_TEAMS];
+                oddsGenerator = generateFootballOdds;
+                leagues = Object.keys(TEAMS_FOOTBALL).map(k => k.toUpperCase());
+            } else if (sport === 'basketball') {
+                teams = [...TEAMS_BASKETBALL];
+                oddsGenerator = generateMoneylineOdds;
+                leagues = ['NBA', 'EUROLEAGUE'];
+            } else if (sport === 'hockey') {
+                teams = [...TEAMS_HOCKEY];
+                oddsGenerator = generateMoneylineOdds;
+                leagues = ['NHL', 'INTERNATIONAL'];
+            } else if (sport === 'am_football') {
+                teams = [...TEAMS_AM_FOOTBALL];
+                oddsGenerator = generateMoneylineOdds;
+                leagues = ['NFL'];
+            } else if (sport === 'baseball') {
+                teams = [...TEAMS_BASEBALL];
+                oddsGenerator = generateMoneylineOdds;
+                leagues = ['MLB'];
+            } else if (sport === 'tennis') {
+                teams = [...TEAMS_TENNIS];
+                oddsGenerator = generateMoneylineOdds;
+                leagues = ['ATP', 'WTA'];
+            }
+            
+            // Shuffle teams
+            for (let i = teams.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [teams[i], teams[j]] = [teams[j], teams[i]];
+            }
+
+            // Create pairs
+            for (let i = 0; i < count; i++) {
+                if (teams.length < 2) break;
+                const homeTeam = teams.pop();
+                const awayTeam = teams.pop();
+                const odds = oddsGenerator();
+                
+                matches.push({
+                    id: Date.now() + i + Math.random(),
+                    sport,
+                    homeTeam,
+                    awayTeam,
+                    odds,
+                    startTime: new Date(Date.now() + Math.random() * 86400000 * 2),
+                    league: leagues[Math.floor(Math.random() * leagues.length)]
+                });
+            }
+            return matches;
+        };
+
+        const simulateMatchResult = (match) => {
+            const { odds, sport } = match;
+            
+            if (sport === 'football') {
+                const probHome = 1 / odds.home;
+                const probDraw = 1 / odds.draw;
+                const probAway = 1 / odds.away;
+                const total = probHome + probDraw + probAway;
+                const r = Math.random();
+                
+                if (r < probHome / total) return '1';
+                if (r < (probHome + probDraw) / total) return 'X';
+                return '2';
+            } else {
+                // Moneyline
+                const probHome = 1 / odds.home;
+                const probAway = 1 / odds.away;
+                const total = probHome + probAway;
+                const r = Math.random();
+                
+                return r < (probHome / total) ? '1' : '2';
+            }
+        };
+
+        // --- Icons ---
+        const Icons = {
+            Wallet: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>,
+            Refresh: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>,
+            Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>,
+            Football: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 14.14 14.14"/><path d="m14.83 9.17-5.66 5.66"/><path d="m14.83 14.83-5.66-5.66"/><path d="m9.17 4.93 5.66 14.14"/></svg>,
+            Basketball: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M5.6 5.6C7.6 7.6 12 6 12 1s4.4 6.6 6.4 8.6"/><path d="M8 22c0-7 7-7 7-18"/><path d="M12 22v-9"/></svg>,
+            Hockey: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 19h20"/><path d="M2 15h20"/><path d="M3 15v4"/><path d="M21 15v4"/><path d="M10 3v12"/><path d="M14 3v12"/><path d="M2 3h20"/></svg>,
+            AmFootball: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2c1 0 3 .5 5 2 1.5 1 2.5 3 2.5 5 0 2.5-2 5.5-4 7-2 1.5-4.5 2-7 2-2 0-3-.5-3.5-1-.5-1-.5-3 .5-5 1.5-2 4-5 6.5-7 .5-.5 1-1.5-.5-2 0 0-2 2-3 4"/><line x1="14" x2="14" y1="2" y2="2"/><line x1="2" x2="2" y1="14" y2="14"/><path d="M22 22 2 2"/></svg>,
+            Baseball: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M10.3 21a11.8 11.8 0 0 1-5.7-5.6"/><path d="M18.8 14.8c-1-2.5-3-4.5-5.6-5.6"/><path d="M2 12h20"/></svg>,
+            Tennis: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"/></svg>,
+            Gamepad: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><rect width="20" height="12" x="2" y="6" rx="2"/></svg>,
+            Menu: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>,
+            Logout: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+        };
+
+        // --- Components ---
+
+        const AuthScreen = ({ onLogin }) => {
+            const [isRegister, setIsRegister] = useState(false);
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [error, setError] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                setError('');
+                
+                try {
+                    if (isRegister) {
+                        if (password !== confirmPassword) {
+                            throw new Error("Passwords do not match");
+                        }
+                        if (username.length < 3) throw new Error("Username must be at least 3 characters");
+                        if (password.length < 4) throw new Error("Password must be at least 4 characters");
+                        
+                        const user = UserManager.register(username, password);
+                        onLogin(user);
+                    } else {
+                        const user = UserManager.login(username, password);
+                        onLogin(user);
+                    }
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 w-full max-w-md shadow-2xl">
+                        <div className="flex items-center justify-center gap-3 mb-8">
+                             <div className="w-10 h-10 bg-indigo-600 rounded flex items-center justify-center font-bold text-white text-xl">A</div>
+                             <h1 className="text-3xl font-bold tracking-tight text-white">ATOB</h1>
+                        </div>
+                        
+                        <h2 className="text-xl font-bold text-white mb-6 text-center">{isRegister ? 'Create Account' : 'Welcome Back'}</h2>
+                        
+                        {error && (
+                            <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm mb-4 text-center">
+                                {error}
+                            </div>
+                        )}
+                        
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs text-slate-400 uppercase font-bold mb-1">Username</label>
+                                <input 
+                                    type="text" 
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-slate-400 uppercase font-bold mb-1">Password</label>
+                                <input 
+                                    type="password" 
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                                    required
+                                />
+                            </div>
+                            {isRegister && (
+                                <div>
+                                    <label className="block text-xs text-slate-400 uppercase font-bold mb-1">Confirm Password</label>
+                                    <input 
+                                        type="password" 
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                                        required
+                                    />
+                                </div>
+                            )}
+                            
+                            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg transition-colors mt-2">
+                                {isRegister ? 'Sign Up' : 'Sign In'}
+                            </button>
+                        </form>
+                        
+                        <div className="mt-6 text-center text-sm text-slate-400">
+                            {isRegister ? "Already have an account?" : "New to ATOB?"} 
+                            <button 
+                                onClick={() => { setIsRegister(!isRegister); setError(''); }}
+                                className="ml-2 text-indigo-400 hover:text-white underline font-medium"
+                            >
+                                {isRegister ? "Login" : "Register"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Header = ({ user, balance, resetBalance, toggleSidebar, onLogout }) => (
+            <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 h-16 flex items-center justify-between px-4 lg:px-6">
+                <div className="flex items-center gap-3">
+                    <button className="lg:hidden text-slate-400" onClick={toggleSidebar}>
+                        <Icons.Menu />
+                    </button>
+                    <div className="flex items-center gap-1.5 cursor-pointer">
+                        <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center font-bold text-white text-lg">A</div>
+                        <h1 className="text-xl font-bold tracking-tight text-white">TOB</h1>
+                    </div>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
+                        <span className="text-green-400"><Icons.Wallet /></span>
+                        <span className="font-mono font-bold text-green-400">{balance.toFixed(2)}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 border-l border-slate-700 pl-4">
+                         <div className="hidden md:block text-right">
+                             <div className="text-xs text-slate-400">Player</div>
+                             <div className="text-sm font-bold text-white leading-none">{user.username}</div>
+                         </div>
+                         <button onClick={onLogout} className="text-slate-400 hover:text-white p-2 hover:bg-slate-800 rounded-full transition-colors" title="Logout">
+                             <Icons.Logout />
+                         </button>
+                    </div>
+                </div>
+            </header>
+        );
+
+        const Sidebar = ({ currentView, setView, isOpen, toggle }) => {
+            const items = [
+                { id: 'home', label: 'Home', icon: null },
+                { id: 'football', label: 'Football', icon: <Icons.Football /> },
+                { id: 'basketball', label: 'Basketball', icon: <Icons.Basketball /> },
+                { id: 'hockey', label: 'Ice Hockey', icon: <Icons.Hockey /> },
+                { id: 'am_football', label: 'Am. Football', icon: <Icons.AmFootball /> },
+                { id: 'baseball', label: 'Baseball', icon: <Icons.Baseball /> },
+                { id: 'tennis', label: 'Tennis', icon: <Icons.Tennis /> },
+                { id: 'mybets', label: 'My Bets', icon: null },
+                { id: 'pong', label: 'ATOB Free Pong Game', icon: <Icons.Gamepad /> },
+            ];
+
+            return (
+                <>
+                    <div 
+                        className={`fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                        onClick={toggle}
+                    />
+                    
+                    <aside className={`fixed lg:static top-0 left-0 h-full w-64 bg-slate-900 border-r border-slate-800 z-50 transform transition-transform duration-300 lg:transform-none ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                        <div className="p-4 border-b border-slate-800 lg:hidden flex justify-between items-center">
+                            <span className="font-bold text-white">Menu</span>
+                            <button onClick={toggle} className="text-slate-400">X</button>
+                        </div>
+                        <nav className="p-4 space-y-1">
+                            {items.map(item => {
+                                if (item.id === 'pong') {
+                                    return (
+                                        <a
+                                            key={item.id}
+                                            href="https://carolinewashington128-crypto.github.io/atob-free-game/"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300 mt-4 border border-indigo-500/20"
+                                        >
+                                            {item.icon}
+                                            <span>{item.label}</span>
+                                        </a>
+                                    );
+                                }
+                                return (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => { setView(item.id); if(window.innerWidth < 1024) toggle(); }}
+                                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                                            currentView === item.id 
+                                            ? 'bg-slate-800 text-white border border-slate-700' 
+                                            : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+                                        }`}
+                                    >
+                                        {item.icon}
+                                        <span>{item.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </nav>
+                    </aside>
+                </>
+            );
+        };
+
+        const HomeCard = ({ title, subtext, icon, accent, onClick }) => {
+            const colors = {
+                amber: { bg: 'bg-amber-500/20', text: 'text-amber-500', border: 'hover:border-amber-500', shadow: 'hover:shadow-amber-500/20' },
+                orange: { bg: 'bg-orange-500/20', text: 'text-orange-500', border: 'hover:border-orange-500', shadow: 'hover:shadow-orange-500/20' },
+                cyan: { bg: 'bg-cyan-500/20', text: 'text-cyan-500', border: 'hover:border-cyan-500', shadow: 'hover:shadow-cyan-500/20' },
+                emerald: { bg: 'bg-emerald-500/20', text: 'text-emerald-500', border: 'hover:border-emerald-500', shadow: 'hover:shadow-emerald-500/20' },
+                rose: { bg: 'bg-rose-500/20', text: 'text-rose-500', border: 'hover:border-rose-500', shadow: 'hover:shadow-rose-500/20' },
+                lime: { bg: 'bg-lime-500/20', text: 'text-lime-500', border: 'hover:border-lime-500', shadow: 'hover:shadow-lime-500/20' },
+                indigo: { bg: 'bg-indigo-500/20', text: 'text-indigo-500', border: 'hover:border-indigo-500', shadow: 'hover:shadow-indigo-500/20' }
+            }[accent] || { bg: 'bg-slate-700', text: 'text-white', border: 'border-slate-600', shadow: '' };
+
+            return (
+                <div 
+                    onClick={onClick}
+                    className={`group relative overflow-hidden bg-slate-800/50 rounded-2xl p-6 border border-slate-700 ${colors.border} transition-all duration-300 cursor-pointer hover:shadow-lg ${colors.shadow}`}
+                >
+                    <div className={`absolute -right-6 -bottom-6 opacity-10 group-hover:opacity-20 transition-opacity ${colors.text} transform scale-150`}>
+                        {icon}
+                    </div>
+                    <div className={`w-12 h-12 rounded-lg ${colors.bg} ${colors.text} flex items-center justify-center mb-4`}>
+                        {icon}
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-1">{title}</h3>
+                    <p className="text-sm text-slate-400">{subtext}</p>
+                </div>
+            );
+        };
+
+        const MatchRow = ({ match, toggleSelection, isSelected, accentColor }) => {
+            const getButtonClass = (type) => {
+                const active = isSelected(match.id, type);
+                
+                let activeClass = 'bg-white text-black font-bold border-white';
+                if (accentColor === 'amber') activeClass = 'bg-amber-400 border-amber-400 text-black font-bold';
+                if (accentColor === 'orange') activeClass = 'bg-orange-500 border-orange-500 text-black font-bold';
+                if (accentColor === 'cyan') activeClass = 'bg-cyan-400 border-cyan-400 text-black font-bold';
+
+                return `flex flex-col items-center justify-center py-2 px-1 rounded transition-colors duration-200 border ${
+                    active 
+                    ? activeClass
+                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:border-slate-600'
+                }`;
+            };
+
+            const indicatorColor = {
+                amber: 'bg-amber-500',
+                orange: 'bg-orange-500',
+                cyan: 'bg-cyan-500',
+                indigo: 'bg-indigo-500'
+            }[accentColor] || 'bg-slate-500';
+
+            return (
+                <div className="bg-slate-900 p-4 rounded-lg border border-slate-800 mb-3 hover:border-slate-700 transition-colors">
+                    <div className="flex justify-between items-center mb-3">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                             <span className={`w-1.5 h-1.5 rounded-full ${indicatorColor}`}></span>
+                             {match.league}
+                        </span>
+                        <span className="text-xs text-slate-600 font-mono">
+                            {match.startTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-12 gap-4 items-center">
+                        <div className="col-span-12 md:col-span-5 flex flex-col gap-1">
+                            <div className="flex justify-between items-center">
+                                <span className="font-medium text-white">{match.homeTeam}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="font-medium text-white">{match.awayTeam}</span>
+                            </div>
+                        </div>
+
+                        <div className={`col-span-12 md:col-span-7 grid ${match.sport === 'football' ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
+                            <button className={getButtonClass('1')} onClick={() => toggleSelection(match, '1', match.odds.home)}>
+                                <span className="text-xs opacity-70 mb-0.5">{match.sport === 'football' ? '1' : 'Home'}</span>
+                                <span className="font-mono">{match.odds.home.toFixed(2)}</span>
+                            </button>
+                            
+                            {match.sport === 'football' && (
+                                <button className={getButtonClass('X')} onClick={() => toggleSelection(match, 'X', match.odds.draw)}>
+                                    <span className="text-xs opacity-70 mb-0.5">X</span>
+                                    <span className="font-mono">{match.odds.draw.toFixed(2)}</span>
+                                </button>
+                            )}
+                            
+                            <button className={getButtonClass('2')} onClick={() => toggleSelection(match, '2', match.odds.away)}>
+                                <span className="text-xs opacity-70 mb-0.5">{match.sport === 'football' ? '2' : 'Away'}</span>
+                                <span className="font-mono">{match.odds.away.toFixed(2)}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const BetSlip = ({ selections, removeSelection, stake, setStake, placeBet, balance, removeAll }) => {
+            const potentialReturnTotal = selections.reduce((acc, curr) => acc + (curr.odds * stake), 0);
+            const isValidStake = stake > 0 && stake * selections.length <= balance;
+
+            if (selections.length === 0) {
+                return (
+                    <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 text-center text-slate-500">
+                        <div className="mb-2 flex justify-center opacity-50 text-indigo-500"><Icons.Wallet /></div>
+                        <p>Bet Slip Empty</p>
+                        <p className="text-xs mt-1">Select odds to start betting</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden shadow-xl sticky top-20">
+                    <div className="bg-slate-800 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                            <span className="bg-indigo-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{selections.length}</span>
+                            <h3 className="font-bold text-white">Bet Slip</h3>
+                        </div>
+                        <button onClick={removeAll} className="text-slate-400 hover:text-white text-xs">Clear</button>
+                    </div>
+
+                    <div className="max-h-[350px] overflow-y-auto">
+                        {selections.map((sel) => (
+                            <div key={`${sel.matchId}-${sel.selection}`} className="p-3 border-b border-slate-800 relative group hover:bg-slate-800/50">
+                                <button onClick={() => removeSelection(sel.matchId)} className="absolute top-3 right-3 text-slate-600 hover:text-red-500"><Icons.Trash /></button>
+                                <div className="pr-6">
+                                    <div className="text-sm text-white font-medium mb-1">{sel.selectionName}</div>
+                                    <div className="text-xs text-slate-500 mb-2">{sel.matchName}</div>
+                                    <span className="px-1.5 py-0.5 bg-slate-800 text-indigo-400 rounded text-xs border border-slate-700 font-mono">
+                                        {sel.odds.toFixed(2)}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="p-4 bg-slate-800/30">
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="text-xs text-slate-400">Stake per bet</label>
+                            <div className="text-right text-xs text-slate-500">Max: {balance.toFixed(0)}</div>
+                        </div>
+                        <div className="relative mb-4">
+                            <span className="absolute left-3 top-2 text-slate-500 font-bold">$</span>
+                            <input 
+                                type="number" 
+                                value={stake} 
+                                onChange={(e) => setStake(Number(e.target.value))}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-md py-1.5 pl-7 pr-3 text-white focus:outline-none focus:border-indigo-500 font-mono text-sm"
+                            />
+                        </div>
+                        <div className="flex justify-between items-center mb-2 text-sm">
+                            <span className="text-slate-400">Total Stake</span>
+                            <span className="text-white font-mono">{(stake * selections.length).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mb-4 text-sm">
+                            <span className="text-slate-400">Est. Returns</span>
+                            <span className="text-green-400 font-mono font-bold">{potentialReturnTotal.toFixed(2)}</span>
+                        </div>
+                        <button 
+                            onClick={placeBet}
+                            disabled={!isValidStake}
+                            className={`w-full py-2.5 rounded-md font-bold uppercase tracking-wider text-sm transition-all ${
+                                isValidStake ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                            }`}
+                        >
+                            Place Bet
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const MyBets = ({ bets, simulateResults, currentSport }) => {
+            const activeBets = bets.filter(b => b.status === 'pending');
+            const settledBets = bets.filter(b => b.status !== 'pending').reverse();
+            
+            const sportActiveBets = activeBets.filter(b => !currentSport || b.sport === currentSport);
+            const canSimulate = currentSport && sportActiveBets.length > 0;
+
+            return (
+                <div className="space-y-6">
+                    <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+                        <div className="bg-slate-800 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
+                            <h3 className="font-bold text-white">Active Bets</h3>
+                            {canSimulate && (
+                                <button 
+                                    onClick={() => simulateResults(currentSport)}
+                                    className="bg-green-600 hover:bg-green-500 text-white text-[10px] px-3 py-1.5 rounded uppercase font-bold tracking-wide transition-colors"
+                                >
+                                    Simulate {currentSport}
+                                </button>
+                            )}
+                        </div>
+                        <div className="divide-y divide-slate-800 max-h-[400px] overflow-y-auto">
+                            {activeBets.length === 0 ? (
+                                <div className="p-6 text-center text-slate-500 text-sm">No active bets</div>
+                            ) : (
+                                activeBets.map(bet => (
+                                    <div key={bet.id} className="p-3 hover:bg-slate-800/30">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="text-xs font-bold text-slate-500 uppercase">{bet.sport}</span>
+                                            <span className="text-amber-500 font-mono text-sm">@{bet.odds.toFixed(2)}</span>
+                                        </div>
+                                        <div className="text-sm font-bold text-white">{bet.selectionName}</div>
+                                        <div className="text-xs text-slate-400">{bet.matchName}</div>
+                                        <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-800/50">
+                                            <span className="text-xs text-slate-500">Stake: {bet.stake}</span>
+                                            <span className="text-xs text-green-400">Ret: {(bet.stake * bet.odds).toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden opacity-75">
+                        <div className="bg-slate-800 px-4 py-3 border-b border-slate-700">
+                            <h3 className="font-bold text-slate-400 text-sm">History</h3>
+                        </div>
+                        <div className="divide-y divide-slate-800 max-h-60 overflow-y-auto">
+                            {settledBets.map(bet => (
+                                <div key={bet.id} className="p-3 flex justify-between items-center">
+                                    <div>
+                                        <div className="text-sm text-slate-300">{bet.selectionName}</div>
+                                        <div className="text-xs text-slate-500 flex gap-2">
+                                            <span>{bet.sport}</span>
+                                            <span className={bet.status === 'won' ? 'text-green-500' : 'text-red-500'}>{bet.status.toUpperCase()}</span>
+                                        </div>
+                                    </div>
+                                    <div className={`text-sm font-bold font-mono ${bet.status === 'won' ? 'text-green-500' : 'text-slate-500'}`}>
+                                        {bet.status === 'won' ? `+${(bet.stake * bet.odds).toFixed(2)}` : `-${bet.stake}`}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            // Auth State
+            const [user, setUser] = useState(() => UserManager.checkSession());
+            
+            // Game State
+            const [balance, setBalance] = useState(user ? user.balance : INITIAL_BALANCE);
+            const [view, setView] = useState('home');
+            const [sidebarOpen, setSidebarOpen] = useState(false);
+            
+            const [matches, setMatches] = useState([]);
+            const [slip, setSlip] = useState([]);
+            const [bets, setBets] = useState(user ? user.bets : []);
+            const [stake, setStake] = useState(10);
+
+            // Effect: Sync User Data to LocalStorage
+            useEffect(() => {
+                if (user) {
+                    UserManager.updateUserData(user.username, { balance, bets });
+                }
+            }, [balance, bets, user]);
+
+            // Effect: Load User Data on Login
+            useEffect(() => {
+                if (user) {
+                    setBalance(user.balance);
+                    setBets(user.bets);
+                    setSlip([]); // Clear slip on login
+                }
+            }, [user]);
+
+            // Initial Match Generation
+            useEffect(() => {
+                const fb = generateMatches('football', 10);
+                const bb = generateMatches('basketball', 8);
+                const hk = generateMatches('hockey', 8);
+                const af = generateMatches('am_football', 8);
+                const bs = generateMatches('baseball', 8);
+                const tn = generateMatches('tennis', 8);
+                setMatches([...fb, ...bb, ...hk, ...af, ...bs, ...tn]);
+            }, []);
+
+            const handleLogout = () => {
+                UserManager.logout();
+                setUser(null);
+                setBalance(INITIAL_BALANCE); // Reset to default view (though hidden behind auth)
+                setBets([]);
+            };
+
+            const handleReset = () => {
+                if(confirm("Reset your funds to 1000?")) {
+                    setBalance(INITIAL_BALANCE);
+                    setBets([]);
+                    setSlip([]);
+                }
+            };
+
+            const toggleSelection = (match, selection, odds) => {
+                const existing = slip.find(s => s.matchId === match.id);
+                if (existing) {
+                    if (existing.selection === selection) {
+                        setSlip(slip.filter(s => s.matchId !== match.id));
+                    } else {
+                        setSlip(slip.map(s => s.matchId === match.id ? { ...s, selection, odds } : s));
+                    }
+                } else {
+                    let selectionName = '';
+                    if (selection === '1') selectionName = match.homeTeam;
+                    else if (selection === '2') selectionName = match.awayTeam;
+                    else selectionName = 'Draw';
+
+                    setSlip([...slip, {
+                        matchId: match.id,
+                        matchName: `${match.homeTeam} vs ${match.awayTeam}`,
+                        sport: match.sport,
+                        homeTeam: match.homeTeam,
+                        awayTeam: match.awayTeam,
+                        selection,
+                        selectionName,
+                        odds,
+                        fullOdds: match.odds
+                    }]);
+                }
+            };
+
+            const placeBet = () => {
+                const totalStake = stake * slip.length;
+                if (totalStake > balance) return;
+                
+                const newBets = slip.map(s => ({
+                    id: Date.now() + Math.random(),
+                    ...s,
+                    stake,
+                    status: 'pending',
+                    timestamp: Date.now()
+                }));
+                
+                setBalance(prev => prev - totalStake);
+                setBets(prev => [...prev, ...newBets]);
+                setSlip([]);
+            };
+
+            const simulateResults = (sportToSimulate) => {
+                if (!sportToSimulate) return;
+                
+                const pendingBets = bets.filter(b => b.status === 'pending' && b.sport === sportToSimulate);
+                if (pendingBets.length === 0) return;
+
+                const matchResults = {};
+
+                const updatedBets = bets.map(bet => {
+                    if (bet.status !== 'pending' || bet.sport !== sportToSimulate) return bet;
+
+                    let result;
+                    const match = matches.find(m => m.id === bet.matchId);
+                    
+                    if (match) {
+                        if (!matchResults[match.id]) matchResults[match.id] = simulateMatchResult(match);
+                        result = matchResults[match.id];
+                    } else {
+                        result = simulateMatchResult({ odds: bet.fullOdds, sport: bet.sport });
+                    }
+
+                    const won = bet.selection === result;
+                    return { ...bet, status: won ? 'won' : 'lost', result };
+                });
+
+                const winnings = updatedBets
+                    .filter(b => b.status === 'won' && pendingBets.find(pb => pb.id === b.id))
+                    .reduce((acc, b) => acc + (b.stake * b.odds), 0);
+                
+                setBets(updatedBets);
+                setBalance(prev => prev + winnings);
+                
+                // Regenerate matches
+                const otherMatches = matches.filter(m => m.sport !== sportToSimulate);
+                const newMatches = generateMatches(sportToSimulate, 8);
+                setMatches([...otherMatches, ...newMatches]);
+            };
+
+            const getAccent = () => {
+                if (view === 'football') return 'amber';
+                if (view === 'basketball') return 'orange';
+                if (view === 'hockey') return 'cyan';
+                if (view === 'am_football') return 'emerald';
+                if (view === 'baseball') return 'rose';
+                if (view === 'tennis') return 'lime';
+                return 'indigo';
+            };
+
+            // Auth Guard
+            if (!user) {
+                return <AuthScreen onLogin={setUser} />;
+            }
+
+            const renderMainContent = () => {
+                if (view === 'home') {
+                    return (
+                        <div className="space-y-8">
+                            <div className="text-center py-10 px-4 bg-gradient-to-r from-slate-900 to-slate-800 rounded-3xl border border-slate-800 relative overflow-hidden">
+                                <div className="relative z-10">
+                                    <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4 tracking-tight">
+                                        ATOB-Where the World most Stupidest bets are made
+                                    </h2>
+                                    <p className="text-slate-400 max-w-xl mx-auto mb-6">Experience the thrill of betting without the risk. Simulate matches instantly and test your strategy across 6 major sports.</p>
+                                    <button onClick={() => setView('football')} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-full transition-all shadow-lg shadow-indigo-500/25">
+                                        Start Betting Now
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <HomeCard 
+                                    title="Football" 
+                                    subtext="Premier League, La Liga, Serie A" 
+                                    icon={<Icons.Football />} 
+                                    accent="amber"
+                                    onClick={() => setView('football')}
+                                />
+                                <HomeCard 
+                                    title="Basketball" 
+                                    subtext="NBA & EuroLeague" 
+                                    icon={<Icons.Basketball />} 
+                                    accent="orange"
+                                    onClick={() => setView('basketball')}
+                                />
+                                <HomeCard 
+                                    title="Ice Hockey" 
+                                    subtext="NHL & International" 
+                                    icon={<Icons.Hockey />} 
+                                    accent="cyan"
+                                    onClick={() => setView('hockey')}
+                                />
+                                <HomeCard 
+                                    title="Am. Football" 
+                                    subtext="NFL & College" 
+                                    icon={<Icons.AmFootball />} 
+                                    accent="emerald"
+                                    onClick={() => setView('am_football')}
+                                />
+                                <HomeCard 
+                                    title="Baseball" 
+                                    subtext="MLB & World Series" 
+                                    icon={<Icons.Baseball />} 
+                                    accent="rose"
+                                    onClick={() => setView('baseball')}
+                                />
+                                <HomeCard 
+                                    title="Tennis" 
+                                    subtext="ATP, WTA & Grand Slams" 
+                                    icon={<Icons.Tennis />} 
+                                    accent="lime"
+                                    onClick={() => setView('tennis')}
+                                />
+                            </div>
+
+                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4 overflow-hidden">
+                                <span className="bg-green-500/10 text-green-500 text-xs font-bold px-2 py-1 rounded">LIVE WINNERS</span>
+                                <div className="text-sm text-slate-400 whitespace-nowrap animate-marquee">
+                                    {user.username} joined the game • User88 won 500 coins on Lakers • Player23 won 210 coins on Man City • 
+                                </div>
+                            </div>
+                            
+
+                        </div>
+                    );
+                }
+
+                if (['football', 'basketball', 'hockey', 'am_football', 'baseball', 'tennis'].includes(view)) {
+                    const sportMatches = matches.filter(m => m.sport === view);
+                    const headerColor = {
+                        amber: 'bg-amber-500',
+                        orange: 'bg-orange-500',
+                        cyan: 'bg-cyan-500',
+                        emerald: 'bg-emerald-500',
+                        rose: 'bg-rose-500',
+                        lime: 'bg-lime-500',
+                        indigo: 'bg-indigo-500'
+                    }[getAccent()] || 'bg-indigo-500';
+
+                    return (
+                        <div>
+                             <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold text-white flex items-center gap-3 capitalize">
+                                    <span className={`w-2 h-8 rounded-full ${headerColor} inline-block`}></span>
+                                    {view} Betting
+                                </h2>
+                                <button 
+                                    onClick={() => {
+                                        const others = matches.filter(m => m.sport !== view);
+                                        const fresh = generateMatches(view, 8);
+                                        setMatches([...others, ...fresh]);
+                                    }}
+                                    className="text-xs flex items-center gap-1 text-slate-400 hover:text-white bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700"
+                                >
+                                    <Icons.Refresh /> Refresh Odds
+                                </button>
+                            </div>
+                            <div className="space-y-3">
+                                {sportMatches.map(match => (
+                                    <MatchRow 
+                                        key={match.id} 
+                                        match={match} 
+                                        toggleSelection={toggleSelection} 
+                                        isSelected={(id, type) => slip.some(s => s.matchId === id && s.selection === type)}
+                                        accentColor={getAccent()}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    );
+                }
+
+                if (view === 'mybets') {
+                    return (
+                        <div>
+                            <h2 className="text-2xl font-bold text-white mb-6">My Betting History</h2>
+                            <MyBets bets={bets} simulateResults={simulateResults} currentSport={null} />
+                        </div>
+                    );
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-950 text-slate-200 font-sans">
+                    <Header 
+                        user={user}
+                        balance={balance} 
+                        resetBalance={handleReset} 
+                        toggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
+                        onLogout={handleLogout}
+                    />
+                    
+                    <div className="flex max-w-7xl mx-auto">
+                        <Sidebar currentView={view} setView={setView} isOpen={sidebarOpen} toggle={() => setSidebarOpen(false)} />
+                        
+                        <main className="flex-1 p-4 lg:p-6 w-full min-w-0 grid grid-cols-1 lg:grid-cols-12 gap-6">
+                            <div className="lg:col-span-8">
+                                {renderMainContent()}
+                            </div>
+                            <div className="lg:col-span-4 space-y-6">
+                                <BetSlip 
+                                    selections={slip} 
+                                    removeSelection={(id) => setSlip(slip.filter(s => s.matchId !== id))}
+                                    stake={stake} 
+                                    setStake={setStake}
+                                    placeBet={placeBet}
+                                    balance={balance}
+                                    removeAll={() => setSlip([])}
+                                />
+                                {view !== 'mybets' && (
+                                    <div className="hidden lg:block">
+                                        <MyBets bets={bets} simulateResults={simulateResults} currentSport={['football', 'basketball', 'hockey', 'am_football', 'baseball', 'tennis'].includes(view) ? view : null} />
+                                    </div>
+                                )}
+                            </div>
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
