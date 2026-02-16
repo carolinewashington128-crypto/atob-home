@@ -284,7 +284,173 @@
 
         // --- Components ---
 
-        const AuthScreen = ({ onLogin }) => {
+        const LandingPage = ({ onLoginClick }) => (
+            <div className="min-h-screen bg-slate-950 text-white font-sans flex flex-col">
+                {/* Header */}
+                <header className="px-6 h-20 flex items-center justify-between border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+                    <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 bg-indigo-600 rounded flex items-center justify-center font-bold text-xl shadow-lg shadow-indigo-500/20">A</div>
+                        <span className="text-2xl font-bold tracking-tight">ATOB</span>
+                    </div>
+                    <button 
+                        onClick={onLoginClick}
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-6 rounded-lg transition-all shadow-lg shadow-indigo-500/20"
+                    >
+                        Login / Sign Up
+                    </button>
+                </header>
+
+                {/* Hero */}
+                <main className="flex-1">
+                    <section className="relative overflow-hidden py-20 px-6 text-center">
+                         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-[128px] pointer-events-none"></div>
+                        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-rose-600/10 rounded-full blur-[128px] pointer-events-none"></div>
+                        
+                        <div className="relative z-10 max-w-4xl mx-auto space-y-8">
+                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800/50 border border-slate-700 text-sm font-medium text-slate-300 mb-4">
+                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                Live Virtual Sports Betting
+                            </div>
+                            
+                            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-slate-400">
+                                ATOB <br/>
+                                <span className="text-4xl md:text-6xl text-slate-400">Where the World most Stupidest bets are made</span>
+                            </h1>
+                            
+                            <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
+                                The ultimate risk-free betting simulator. Wager on Football, Basketball, Tennis and more with virtual currency. No real money, just pure thrill.
+                            </p>
+
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+                                <button 
+                                    onClick={onLoginClick}
+                                    className="w-full sm:w-auto bg-white text-slate-950 font-bold py-4 px-8 rounded-xl hover:bg-slate-200 transition-colors text-lg"
+                                >
+                                    Start Playing Now
+                                </button>
+                                <a 
+                                    href="https://carolinewashington128-crypto.github.io/atob-free-game/"
+                                    target="_blank"
+                                    className="w-full sm:w-auto px-8 py-4 rounded-xl font-bold border border-slate-700 hover:bg-slate-800 transition-colors text-slate-300"
+                                >
+                                    Play Pong
+                                </a>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Stats Section */}
+                    <section className="border-y border-slate-800 bg-slate-900/50">
+                        <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                            {[
+                                { label: 'Virtual Currency', value: 'Unlimited', color: 'text-indigo-400' },
+                                { label: 'Active Players', value: '10,000+', color: 'text-emerald-400' },
+                                { label: 'Daily Matches', value: '500+', color: 'text-amber-400' },
+                                { label: 'Real Money Lost', value: '$0.00', color: 'text-rose-400' },
+                            ].map((stat, i) => (
+                                <div key={i}>
+                                    <div className={`text-3xl md:text-4xl font-bold ${stat.color} mb-1`}>{stat.value}</div>
+                                    <div className="text-slate-500 text-sm font-medium uppercase tracking-wider">{stat.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* Features / Why Us */}
+                    <section className="py-24 px-6 relative">
+                         <div className="max-w-7xl mx-auto">
+                            <div className="text-center mb-16">
+                                <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Why Choose ATOB?</h2>
+                                <p className="text-slate-400 max-w-2xl mx-auto">We provide the most realistic betting simulation without the financial hangover. Perfect your strategy or just have fun.</p>
+                            </div>
+
+                            <div className="grid md:grid-cols-3 gap-8">
+                                {[
+                                    { title: 'Zero Financial Risk', desc: 'Start with 1,000 coins and refill whenever you go bust. It is impossible to lose real money here.', icon: '🛡️', accent: 'border-indigo-500/30' },
+                                    { title: 'Instant Simulations', desc: 'No waiting 90 minutes for a result. Simulate matches instantly and settle bets in seconds.', icon: '⚡', accent: 'border-amber-500/30' },
+                                    { title: 'Global Sports Coverage', desc: 'From the Premier League to the NBA, NFL, and Grand Slam Tennis. We cover it all.', icon: '🌍', accent: 'border-emerald-500/30' }
+                                ].map((feature, i) => (
+                                    <div key={i} className={`p-8 rounded-2xl bg-slate-900 border ${feature.accent} hover:bg-slate-800 transition-colors`}>
+                                        <div className="text-4xl mb-6">{feature.icon}</div>
+                                        <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
+                                        <p className="text-slate-400 leading-relaxed">{feature.desc}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* How It Works */}
+                    <section className="py-24 px-6 bg-slate-900 border-t border-slate-800">
+                        <div className="max-w-7xl mx-auto">
+                            <div className="grid md:grid-cols-2 gap-12 items-center">
+                                <div className="space-y-8">
+                                    <h2 className="text-3xl md:text-4xl font-bold text-white">How to Play</h2>
+                                    <div className="space-y-6">
+                                        {[
+                                            { step: '01', title: 'Create Account', desc: 'Sign up in seconds. We give you 1,000 coins instantly.' },
+                                            { step: '02', title: 'Place Bets', desc: 'Browse 6 different sports and add selections to your slip.' },
+                                            { step: '03', title: 'Simulate & Win', desc: 'Click "Simulate" to determine the winners based on real probability logic.' }
+                                        ].map((item, i) => (
+                                            <div key={i} className="flex gap-4">
+                                                <div className="text-2xl font-bold text-indigo-600 font-mono">{item.step}</div>
+                                                <div>
+                                                    <h3 className="text-xl font-bold text-white mb-2">{item.title}</h3>
+                                                    <p className="text-slate-400">{item.desc}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button onClick={onLoginClick} className="mt-8 bg-white text-slate-950 font-bold py-3 px-8 rounded-lg hover:bg-slate-200 transition-colors">
+                                        Get Started
+                                    </button>
+                                </div>
+                                <div className="bg-slate-800 p-8 rounded-2xl border border-slate-700 rotate-3 hover:rotate-0 transition-transform duration-500">
+                                    {/* Visual representation of a bet slip */}
+                                    <div className="bg-slate-900 rounded-lg p-4 border border-slate-700 space-y-3 opacity-90">
+                                        <div className="flex justify-between items-center text-sm border-b border-slate-800 pb-2">
+                                            <span className="text-white font-bold">Real Madrid vs Barcelona</span>
+                                            <span className="text-indigo-400 font-mono">@2.45</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm border-b border-slate-800 pb-2">
+                                            <span className="text-white font-bold">Lakers Moneyline</span>
+                                            <span className="text-indigo-400 font-mono">@1.85</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm pt-2">
+                                            <span className="text-slate-400">Potential Return</span>
+                                            <span className="text-green-400 font-bold font-mono">4,532.50</span>
+                                        </div>
+                                        <div className="w-full bg-indigo-600 h-8 rounded mt-2 flex items-center justify-center text-xs font-bold text-white uppercase tracking-wider">
+                                            Bet Placed
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                     {/* Final CTA */}
+                     <section className="py-20 px-6 text-center">
+                        <div className="max-w-3xl mx-auto bg-gradient-to-r from-indigo-900/50 to-slate-900 border border-indigo-500/30 p-12 rounded-3xl">
+                            <h2 className="text-3xl font-bold text-white mb-6">Ready to test your luck?</h2>
+                            <p className="text-slate-400 mb-8">Join thousands of players making the stupidest bets imaginable, completely risk-free.</p>
+                            <button 
+                                onClick={onLoginClick}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-10 rounded-xl transition-all shadow-xl shadow-indigo-600/20 text-lg"
+                            >
+                                Create Free Account
+                            </button>
+                        </div>
+                     </section>
+                </main>
+                
+                <footer className="py-8 border-t border-slate-900 text-center text-slate-600 text-sm">
+                    &copy; 2026 ATOB Virtual Betting. For entertainment purposes only.
+                </footer>
+            </div>
+        );
+
+        const AuthScreen = ({ onLogin, onBack }) => {
             const [isRegister, setIsRegister] = useState(false);
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
@@ -317,6 +483,12 @@
             return (
                 <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 w-full max-w-md shadow-2xl">
+                        {onBack && (
+                            <button onClick={onBack} className="mb-6 text-slate-400 hover:text-white flex items-center gap-2 text-sm font-medium transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                                Back to Home
+                            </button>
+                        )}
                         <div className="flex items-center justify-center gap-3 mb-8">
                              <div className="w-10 h-10 bg-indigo-600 rounded flex items-center justify-center font-bold text-white text-xl">A</div>
                              <h1 className="text-3xl font-bold tracking-tight text-white">ATOB</h1>
@@ -718,6 +890,7 @@
         const App = () => {
             // Auth State
             const [user, setUser] = useState(() => UserManager.checkSession());
+            const [authMode, setAuthMode] = useState(false);
             
             // Game State
             const [balance, setBalance] = useState(user ? user.balance : INITIAL_BALANCE);
@@ -866,7 +1039,10 @@
 
             // Auth Guard
             if (!user) {
-                return <AuthScreen onLogin={setUser} />;
+                if (authMode) {
+                    return <AuthScreen onLogin={setUser} onBack={() => setAuthMode(false)} />;
+                }
+                return <LandingPage onLoginClick={() => setAuthMode(true)} />;
             }
 
             const renderMainContent = () => {
